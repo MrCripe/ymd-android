@@ -1,4 +1,15 @@
-py-ref/
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+*.hprof
+*.keystore
+*.jks
+.DS_Store
 px-ref/
 py-ref/
-px-ref/
