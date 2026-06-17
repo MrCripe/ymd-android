@@ -18,8 +18,10 @@ object Decryptor {
         val keyBytes = hexKey.hexToBytes()
         val cipher = Cipher.getInstance(ALGORITHM)
         val keySpec = SecretKeySpec(keyBytes, "AES")
-        val ivSpec = IvParameterSpec(ByteArray(12))
-        cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec)
+        // pycryptodome `nonce=bytes(12)` ⇒ initial counter block = bytes(12) || counter[0..4]=0x00000001.
+        // Java AES/CTR IV = initial counter block, so we use 12 zero bytes + 00000001.
+        val iv = ByteArray(12) + byteArrayOf(0, 0, 0, 1)
+        cipher.init(Cipher.DECRYPT_MODE, keySpec, IvParameterSpec(iv))
         return cipher.doFinal(encrypted)
     }
 

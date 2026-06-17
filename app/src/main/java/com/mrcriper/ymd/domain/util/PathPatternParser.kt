@@ -26,16 +26,17 @@ object PathPatternParser {
         val album = track.primaryAlbum
         val albumArtist = album?.artists?.firstOrNull()
         val trackArtist = track.primaryArtist
-        val trackIndex = album?.trackIds?.indexOf(track.id)?.plus(1)
+        val trackIndex = album?.trackIds?.indexOf(track.id)?.plus(1)?.takeIf { it > 0 }
+        val effectiveTrackCount = album?.trackCount ?: album?.trackIds?.size
         val paddedIndex = trackIndex?.let { idx ->
-            val width = album?.trackCount?.toString()?.length ?: 1
+            val width = effectiveTrackCount?.toString()?.length ?: 1
             idx.toString().padStart(width, '0')
         }
 
         var path = pattern.template
         val map: Map<String, String?> = mapOf(
-            "#number" to trackIndex?.toString(),
             "#number-padded" to paddedIndex,
+            "#number" to trackIndex?.toString(),
             "#track-artist" to trackArtist?.name,
             "#album-artist" to albumArtist?.name,
             "#title" to track.fullTitle,

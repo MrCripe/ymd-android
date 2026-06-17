@@ -1,6 +1,6 @@
 package com.mrcriper.ymd.data.remote.api
 
-import android.util.Base64
+import java.util.Base64
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -22,7 +22,7 @@ object Signing {
         mac.init(SecretKeySpec(DEFAULT_SIGN_KEY.toByteArray(Charsets.UTF_8), "HmacSHA256"))
         val raw = mac.doFinal(joined.toByteArray(Charsets.UTF_8))
         // py-ref trims trailing '=' via [:-1] on the b64 output
-        val b64 = Base64.encodeToString(raw, Base64.NO_WRAP)
+        val b64 = Base64.getEncoder().encodeToString(raw)
         return b64.trimEnd('=')
     }
 }
