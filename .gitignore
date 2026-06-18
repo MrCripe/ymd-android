@@ -1,15 +1,40 @@
-.gradle/
-build/
+# Build
+/build
+/app/build
+*.apk
+*.aab
+
+# Gradle
+.gradle
+gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
 local.properties
-.idea/
+
+# IDE
+.idea
 *.iml
-.kotlin/
-captures/
-.externalNativeBuild/
-.cxx/
-*.hprof
+.vscode
+.settings
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Keystore / secrets
 *.keystore
 *.jks
-.DS_Store
-px-ref/
-py-ref/
+google-services.json
+/app/src/main/res/values/secrets.xml
+
+# Log files
+*.log
+api_log.txt
+download_log.txt
+
+# Docs (downloaded)
+docs/ym.marshal.dev/
+
+# Test
+/app/src/test/
