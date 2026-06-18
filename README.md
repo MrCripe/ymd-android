@@ -4,26 +4,11 @@
 
 Android-приложение для загрузки музыки из Яндекс Музыки. Форк проекта [yandex-music-downloader](https://github.com/llistochek/yandex-music-downloader) — переписан на Kotlin с Jetpack Compose.
 
-## 🚀 Быстрый старт
+### 1. Получение токена Яндекс Музыки
 
-### 1. Получение API ключа (GitHub Personal Access Token)
+https://ym.marshal.dev/token/
 
-Для сборки проекта нужен GitHub Personal Access Token (PAT):
-
-1. Зайдите на https://github.com/settings/tokens
-2. Нажмите **Generate new token**
-3. Выберите scope: **Contents (Read and write)**
-4. Сгенерируйте токен
-5. Скопируйте токен
-
-### 2. Получение токена Яндекс Музыки
-
-1. Зайдите на https://music.yandex.ru
-2. Откройте DevTools (F12) → Application → Cookies
-3. Скопируйте значение куки `music_token` (начинается с `y0_`)
-4. Или используйте тестовый токен из документации Яндекс Музыки
-
-### 3. Сборка
+### 2. Сборка
 
 ```bash
 git clone https://github.com/MrCripe/ymd-android.git
