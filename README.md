@@ -2,7 +2,7 @@
 
 > **⚠️ ВНИМАНИЕ: Проект сгенерирован ИИ (OpenAI / Google / аналоги). Код может содержать ошибки. Используйте на свой страх и риск.**
 
-Android-приложение для загрузки музыки из Яндекс Музыки. Форк проекта [yandex-music-downloader](https://github.com/...) — переписан на Kotlin с Jetpack Compose.
+Android-приложение для загрузки музыки из Яндекс Музыки. Форк проекта [yandex-music-downloader](https://github.com/llistochek/yandex-music-downloader) — переписан на Kotlin с Jetpack Compose.
 
 ## 🚀 Быстрый старт
 
