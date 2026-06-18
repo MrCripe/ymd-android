@@ -6,24 +6,11 @@ Android app for downloading music from Yandex Music. Fork of [yandex-music-downl
 
 ## 🚀 Quick Start
 
-### 1. Getting API Key (GitHub Personal Access Token)
+### 1. Getting Yandex Music Token
 
-To build the project, you need a GitHub Personal Access Token (PAT):
+https://ym.marshal.dev/token/
 
-1. Go to https://github.com/settings/tokens
-2. Click **Generate new token**
-3. Select scope: **Contents (Read and write)**
-4. Generate the token
-5. Copy the token
-
-### 2. Getting Yandex Music Token
-
-1. Go to https://music.yandex.ru
-2. Open DevTools (F12) → Application → Cookies
-3. Copy the `music_token` cookie value (starts with `y0_`)
-4. Or use a test token from Yandex Music documentation
-
-### 3. Build
+### 2. Build
 
 ```bash
 git clone https://github.com/MrCripe/ymd-android.git
