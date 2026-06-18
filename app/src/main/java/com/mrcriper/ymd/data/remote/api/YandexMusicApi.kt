@@ -32,19 +32,21 @@ import io.ktor.http.headers
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class YandexMusicConfig(
     val timeoutMillis: Long = 20_000L,
     val retries: Int = 20,
     val retryDelayMillis: Long = 5_000L,
-    val userAgent: String = "YMD-Android/1.0",
-    val xClientId: String = "YMD/1.0",
+    val userAgent: String = "YandexMusic/24023621 (Android 14; Pixel 8)",
+    val xClientId: String = "YandexMusicAndroid/24023621",
 )
 
 class YandexMusicApi(
     private val token: String,
     private val config: YandexMusicConfig = YandexMusicConfig(),
-    val httpClient: HttpClient = defaultHttpClient(config),
+    val httpClient: HttpClient = defaultHttpClient(config, token),
 ) {
 
     suspend fun getTracks(trackIds: Collection<String>): List<TrackDto> {
@@ -52,6 +54,12 @@ class YandexMusicApi(
         val response: TracksResponseDto = httpClient.get("$BASE_HOST/tracks") {
             parameter("track-ids", trackIds.joinToString(","))
         }.body()
+        try {
+            val logFile = java.io.File("/data/data/com.mrcriper.ymd.debug/files/api_log.txt")
+            java.io.FileWriter(logFile, true).use {
+                it.write("${System.currentTimeMillis()} getTracks: ${response.result.size} tracks, full=${response}\n")
+            }
+        } catch (_: Exception) {}
         return response.result
     }
 
@@ -107,19 +115,69 @@ class YandexMusicApi(
             "transports" to TRANSPORTS,
         )
         val sign = Signing.sign(params)
-        val response: DownloadInfoResponseDto = httpClient.get("$BASE_HOST/get-file-info") {
-            parameter("ts", ts)
-            parameter("trackId", trackId)
-            parameter("quality", quality)
-            parameter("codecs", CODECS)
-            parameter("transports", TRANSPORTS)
-            parameter("sign", sign)
-        }.body()
-        val list = response.result
-        require(list.isNotEmpty()) { "Empty download info for track $trackId" }
-        val match = list.firstOrNull { it.error == null }
-            ?: throw IllegalStateException("No usable codec for track $trackId: ${list.first().error}")
-        return match
+        // Only encode + as %2B, don't touch / and other chars (URLEncoder would encode / as %2F which breaks the signature)
+        val encodedSign = sign.replace("+", "%2B")
+        val url = "$BASE_HOST/get-file-info?ts=$ts&trackId=$trackId&quality=$quality&codecs=$CODECS&transports=$TRANSPORTS&sign=$encodedSign"
+        // Log to file for debugging
+        try {
+            val logFile = java.io.File("/data/data/com.mrcriper.ymd.debug/files/api_log.txt")
+            logFile.parentFile?.mkdirs()
+            java.io.FileWriter(logFile, true).use {
+                it.write("${System.currentTimeMillis()} URL: $url\n")
+                it.write("${System.currentTimeMillis()} sign: $sign\n")
+                it.write("${System.currentTimeMillis()} token: ${token.take(8)}\n")
+            }
+        } catch (_: Exception) {}
+        // Use OkHttp directly to match Python behavior exactly
+        val body = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val client = okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .followRedirects(true)
+                    .followSslRedirects(true)
+                    .build()
+                val request = okhttp3.Request.Builder()
+                    .url(url)
+                    .addHeader("Authorization", "OAuth $token")
+                    .addHeader("Accept", "application/json")
+                    .addHeader("Accept-Language", "ru")
+                    .addHeader("X-Yandex-Music-Client", config.xClientId)
+                    .addHeader("User-Agent", config.userAgent)
+                    .build()
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string() ?: ""
+                try {
+                    val logFile = java.io.File("/data/data/com.mrcriper.ymd.debug/files/api_log.txt")
+                    java.io.FileWriter(logFile, true).use {
+                        it.write("${System.currentTimeMillis()} HTTP ${response.code}: ${responseBody.take(300)}\n")
+                    }
+                } catch (_: Exception) {}
+                if (!response.isSuccessful) {
+                    throw IllegalStateException("HTTP ${response.code}: $responseBody")
+                }
+                responseBody
+            } catch (e: Exception) {
+                try {
+                    val logFile = java.io.File("/data/data/com.mrcriper.ymd.debug/files/api_log.txt")
+                    java.io.FileWriter(logFile, true).use {
+                        it.write("${System.currentTimeMillis()} EXCEPTION: ${e::class.simpleName}: ${e.message}\n")
+                    }
+                } catch (_: Exception) {}
+                throw e
+            }
+        }
+        val response: DownloadInfoResponseDto = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.decodeFromString(body)
+        val apiResult = response.result
+        if (apiResult?.name != null && apiResult.message != null) {
+            throw IllegalStateException("API error: ${apiResult.name} - ${apiResult.message}")
+        }
+        val info = apiResult?.downloadInfo
+            ?: throw IllegalStateException("No download info for track $trackId")
+        if (info.urls.isEmpty() && info.url == null) {
+            throw IllegalStateException("No download URLs for track $trackId")
+        }
+        return info
     }
 
     suspend fun downloadBytes(url: String): ByteArray {
@@ -141,7 +199,7 @@ class YandexMusicApi(
         const val CODECS: String = "flac,flac-mp4,mp3,aac,he-aac,aac-mp4,he-aac-mp4"
         const val TRANSPORTS: String = "encraw"
 
-        fun defaultHttpClient(config: YandexMusicConfig): HttpClient = HttpClient(Android) {
+        fun defaultHttpClient(config: YandexMusicConfig, token: String): HttpClient = HttpClient(Android) {
             install(ContentNegotiation) {
                 json(Json {
                     ignoreUnknownKeys = true
@@ -168,6 +226,9 @@ class YandexMusicApi(
                     append(HttpHeaders.UserAgent, config.userAgent)
                     append(HttpHeaders.AcceptLanguage, "ru")
                     append("X-Yandex-Music-Client", config.xClientId)
+                    if (token.isNotBlank()) {
+                        append(HttpHeaders.Authorization, "OAuth $token")
+                    }
                 }
             }
             engine {

@@ -3,6 +3,7 @@ package com.mrcriper.ymd.presentation.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mrcriper.ymd.data.repository.AuthRepository
+import com.mrcriper.ymd.data.repository.SettingsRepository
 import com.mrcriper.ymd.di.TokenHolder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -24,6 +25,7 @@ data class AuthUiState(
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val settingsRepository: SettingsRepository,
     private val tokenHolder: TokenHolder,
 ) : ViewModel() {
 
@@ -47,7 +49,9 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             val key = s.login
             authRepository.saveToken(key, s.token)
+            authRepository.selectAccount(key)
             tokenHolder.current = s.token
+            settingsRepository.update { it.copy(activeAccountKey = key, yandexLogin = key) }
             _state.update {
                 it.copy(
                     accounts = authRepository.listAccounts().toList(),
@@ -67,13 +71,23 @@ class AuthViewModel @Inject constructor(
     }
 
     fun selectAccount(key: String) {
+        val token = authRepository.getToken(key)
         authRepository.selectAccount(key)
-        tokenHolder.current = authRepository.getToken(key)
-        _state.update { it.copy(activeAccount = key) }
+        tokenHolder.current = token
+        viewModelScope.launch {
+            settingsRepository.update { it.copy(activeAccountKey = key) }
+        }
+        _state.update { it.copy(activeAccount = key, message = "Selected: $key") }
     }
 
     fun delete(key: String) {
         authRepository.deleteAccount(key)
+        viewModelScope.launch {
+            settingsRepository.update { settings ->
+                if (settings.activeAccountKey == key) settings.copy(activeAccountKey = null)
+                else settings
+            }
+        }
         _state.update {
             it.copy(
                 accounts = authRepository.listAccounts().toList(),

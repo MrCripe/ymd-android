@@ -1,5 +1,8 @@
 package com.mrcriper.ymd.presentation.screens.settings
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,10 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -30,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mrcriper.ymd.R
-import com.mrcriper.ymd.data.local.datastore.AppSettings
 import com.mrcriper.ymd.presentation.components.SettingsGroup
 import com.mrcriper.ymd.presentation.theme.YmdTheme
 import com.mrcriper.ymd.presentation.viewmodel.SettingsViewModel
@@ -43,6 +47,20 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val directoryPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        uri?.let {
+            // Persist read+write permission so we can write into the picked folder later.
+            runCatching {
+                it.let { u ->
+                    viewModel.update { s ->
+                        s.copy(downloadPath = u.toString())
+                    }
+                }
+            }
+        }
+    }
     Scaffold(
         topBar = {
             TopAppBar(title = { Text(stringResource(R.string.title_settings)) })
@@ -55,6 +73,36 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            SettingsGroup(title = "Download folder") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = settings.downloadPath?.let {
+                                // Show just the last path segment for readability
+                                it.substringAfterLast('/').ifBlank { it }.take(60)
+                            } ?: "Not set",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = settings.downloadPath ?: "",
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                        )
+                    }
+                    IconButton(onClick = { directoryPicker.launch(null) }) {
+                        Icon(Icons.Filled.Folder, contentDescription = "Pick folder")
+                    }
+                }
+                if (settings.downloadPath != null) {
+                    TextButton(onClick = { viewModel.update { it.copy(downloadPath = null) } }) {
+                        Text("Clear")
+                    }
+                }
+            }
             SettingsGroup(title = stringResource(R.string.settings_download_group)) {
                 RowSetting("Skip existing", settings.skipExisting) { viewModel.update { it.copy(skipExisting = !it.skipExisting) } }
                 RowSetting("Embed cover", settings.embedCover) { viewModel.update { it.copy(embedCover = !it.embedCover) } }
@@ -122,11 +170,11 @@ private fun RowSetting(title: String, checked: Boolean, onToggle: () -> Unit) {
     }
 }
 
+@Suppress("unused")
+private fun keepImport(intent: Intent) = intent
+
 @Preview(showBackground = true)
 @Composable
 private fun SettingsPreview() {
     YmdTheme { SettingsScreen(onOpenAuth = {}, onOpenAbout = {}) }
 }
-
-@Suppress("unused")
-private fun keepImport(s: AppSettings) = s

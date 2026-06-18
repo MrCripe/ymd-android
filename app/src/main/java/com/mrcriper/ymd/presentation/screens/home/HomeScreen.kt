@@ -1,5 +1,7 @@
 package com.mrcriper.ymd.presentation.screens.home
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,10 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -22,6 +26,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -32,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -57,6 +63,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     HomeContent(
         state = state,
         onUrlChange = viewModel::onUrlChange,
@@ -70,6 +77,13 @@ fun HomeScreen(
         onOpenAuth = onOpenAuth,
         onOpenSettings = onOpenSettings,
         onOpenAbout = onOpenAbout,
+        onOpenFavorites = {
+            val login = state.settings.yandexLogin.ifBlank { "MrCriper10" }
+            val url = "https://music.yandex.ru/users/$login/playlists/3"
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        },
     )
 }
 
@@ -85,6 +99,7 @@ private fun HomeContent(
     onOpenAuth: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenAbout: () -> Unit,
+    onOpenFavorites: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -205,6 +220,39 @@ private fun HomeContent(
             Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.home_start_download))
             }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = onOpenFavorites,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(),
+            ) {
+                Icon(Icons.Filled.Favorite, contentDescription = null)
+                Spacer(Modifier.padding(4.dp))
+                Text("My favorites")
+            }
+            state.message?.let { msg ->
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(msg, modifier = Modifier.padding(12.dp))
+                }
+            }
+            state.lastApiResult?.let { r ->
+                Card(
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(r, modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.labelMedium)
+                }
+            }
         }
     }
 }
@@ -228,7 +276,7 @@ private fun HomePreview() {
         HomeContent(
             state = HomeUiState(url = "https://music.yandex.ru/album/123"),
             onUrlChange = {}, onQuality = {}, onLyric = {}, onSetting = {}, onStart = {},
-            onOpenAuth = {}, onOpenSettings = {}, onOpenAbout = {},
+            onOpenAuth = {}, onOpenSettings = {}, onOpenAbout = {}, onOpenFavorites = {},
         )
     }
 }

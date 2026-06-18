@@ -30,8 +30,11 @@ import com.mrcriper.ymd.presentation.viewmodel.DownloadViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DownloadScreen(viewModel: DownloadViewModel = hiltViewModel()) {
+fun DownloadScreen(
+    viewModel: DownloadViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.tab_download)) }) },
     ) { padding ->

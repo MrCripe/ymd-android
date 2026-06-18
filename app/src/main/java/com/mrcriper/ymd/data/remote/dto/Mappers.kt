@@ -19,6 +19,15 @@ private val CODEC_FORMAT_MAP: Map<String, FileFormat> = mapOf(
     "he-aac-mp4" to FileFormat(Container.MP4, "AAC"),
 )
 
+fun FileFormat.extension(): String = when (container) {
+    Container.FLAC -> ".flac"
+    Container.MP3 -> ".mp3"
+    Container.MP4 -> {
+        // flac-mp4 is FLAC audio inside MP4 container — save as .m4a since we can't remux without ffmpeg
+        if (codec == "FLAC") ".m4a" else ".m4a"
+    }
+}
+
 fun ArtistDto.toArtist(): Artist = Artist(
     id = id ?: error("Artist id missing"),
     name = name.orEmpty(),
@@ -94,13 +103,14 @@ fun TrackDto.toTrack(): Track = Track(
 fun DownloadInfoDto.toDownloadInfo(trackId: String, requested: DownloadQuality): DownloadInfo {
     val fmt = CODEC_FORMAT_MAP[codec]
         ?: error("Unknown codec from API: $codec")
+    val allUrls = if (urls.isNotEmpty()) urls else listOfNotNull(url)
     return DownloadInfo(
         trackId = trackId,
         quality = requested,
         fileFormat = fmt,
-        urls = downloadInfo?.urls.orEmpty(),
-        decryptionKey = downloadInfo?.key,
-        bitrate = downloadInfo?.bitrate ?: bitrate ?: 0,
+        urls = allUrls,
+        decryptionKey = key,
+        bitrate = bitrate ?: 0,
     )
 }
 

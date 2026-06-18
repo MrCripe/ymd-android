@@ -21,6 +21,7 @@ class TagWriter {
     fun write(
         file: File,
         container: Container,
+        codec: String = "",
         title: String,
         album: String,
         artists: List<String>,
@@ -34,7 +35,16 @@ class TagWriter {
         cover: CoverArt?,
         compatibilityLevel: Int = 1,
     ) {
-        val audioFile = AudioFileIO.read(file)
+        // flac-mp4 is FLAC audio inside MP4 container — jaudiotagger can't handle it
+        if (container == Container.MP4 && codec == "FLAC") return
+
+        val audioFile = try {
+            AudioFileIO.read(file)
+        } catch (e: Exception) {
+            // Log the actual file header for debugging
+            val header = file.readBytes().take(32).joinToString("") { "%02x".format(it) }
+            throw Exception("jaudiotagger cannot read file (container=$container, codec=$codec). Header: $header", e)
+        }
         val tag = audioFile.tag
 
         tag.setField(FieldKey.TITLE, title)

@@ -27,6 +27,7 @@ data class AppSettings(
     val pathPattern: String = "#album-artist/#album/#number - #title",
     val unsafePath: Boolean = false,
     val saveDirUri: String? = null,
+    val downloadPath: String? = null,
     val timeoutSeconds: Int = 20,
     val retries: Int = 20,
     val retryDelaySeconds: Int = 5,
@@ -49,6 +50,7 @@ class SettingsDataStore(private val context: Context) {
         val PATH_PATTERN = stringPreferencesKey("path_pattern")
         val UNSAFE_PATH = booleanPreferencesKey("unsafe_path")
         val SAVE_DIR = stringPreferencesKey("save_dir_uri")
+        val DOWNLOAD_PATH = stringPreferencesKey("download_path")
         val TIMEOUT = intPreferencesKey("timeout")
         val RETRIES = intPreferencesKey("retries")
         val RETRY_DELAY = intPreferencesKey("retry_delay")
@@ -78,6 +80,7 @@ class SettingsDataStore(private val context: Context) {
         pathPattern = this[Keys.PATH_PATTERN] ?: "#album-artist/#album/#number - #title",
         unsafePath = this[Keys.UNSAFE_PATH] ?: false,
         saveDirUri = this[Keys.SAVE_DIR],
+        downloadPath = this[Keys.DOWNLOAD_PATH],
         timeoutSeconds = this[Keys.TIMEOUT] ?: 20,
         retries = this[Keys.RETRIES] ?: 20,
         retryDelaySeconds = this[Keys.RETRY_DELAY] ?: 5,
@@ -98,6 +101,7 @@ class SettingsDataStore(private val context: Context) {
         this[Keys.PATH_PATTERN] = s.pathPattern
         this[Keys.UNSAFE_PATH] = s.unsafePath
         if (s.saveDirUri != null) this[Keys.SAVE_DIR] = s.saveDirUri else remove(Keys.SAVE_DIR)
+        if (s.downloadPath != null) this[Keys.DOWNLOAD_PATH] = s.downloadPath else remove(Keys.DOWNLOAD_PATH)
         this[Keys.TIMEOUT] = s.timeoutSeconds
         this[Keys.RETRIES] = s.retries
         this[Keys.RETRY_DELAY] = s.retryDelaySeconds
