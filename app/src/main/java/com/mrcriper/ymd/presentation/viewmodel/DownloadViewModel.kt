@@ -7,6 +7,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mrcriper.ymd.data.local.database.DownloadHistoryEntity
 import com.mrcriper.ymd.data.remote.api.YandexMusicApi
+import com.mrcriper.ymd.domain.util.CoverArt
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import com.mrcriper.ymd.data.remote.download.DownloadEvent
 import com.mrcriper.ymd.data.remote.download.DownloadManager
 import com.mrcriper.ymd.data.remote.dto.toDownloadInfo
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -43,6 +47,8 @@ data class DownloadItem(
     val progress: Float,
     val status: Status,
     val errorMessage: String? = null,
+    val speedBytesPerSec: Long = 0,
+    val coverUrl: String? = null,
 ) {
     enum class Status { QUEUED, RUNNING, PAUSED, COMPLETED, FAILED, CANCELLED }
 }
@@ -71,6 +77,7 @@ class DownloadViewModel @Inject constructor(
     private val pausedIds = mutableSetOf<String>()
     private val cancelledIds = mutableSetOf<String>()
     private val downloadJobs = mutableMapOf<String, Job>()
+    private val downloadStartTime = mutableMapOf<String, Long>()
 
     sealed class Event {
         data class DownloadComplete(val path: String) : Event()
@@ -110,6 +117,8 @@ class DownloadViewModel @Inject constructor(
             DownloadStatus.CANCELLED -> DownloadItem.Status.CANCELLED
         },
         errorMessage = errorMessage,
+        speedBytesPerSec = speedBytesPerSec,
+        coverUrl = track.coverUri,
     )
 
     init {
@@ -178,27 +187,34 @@ class DownloadViewModel @Inject constructor(
 
             // Download data with progress
             log("processDownload: downloading data for $id")
-            val data = downloadManager.downloadWithProgress(infoDto).let { flow ->
-                var result = ByteArray(0)
-                flow.collect { event ->
-                    when (event) {
-                        is DownloadEvent.Complete -> {
-                            result = event.bytes
-                            log("processDownload: downloaded ${result.size} bytes for $id")
-                        }
-                        is DownloadEvent.Progress -> {
-                            repository.updateTask(id) {
-                                it.copy(
-                                    bytesDownloaded = event.progress.bytesRead,
-                                    totalBytes = event.progress.totalBytes,
-                                )
-                            }
-                        }
-                        is DownloadEvent.Failed -> throw event.error
+            downloadStartTime[id] = System.currentTimeMillis()
+            var result = ByteArray(0)
+            val downloadFlow: kotlinx.coroutines.flow.Flow<DownloadEvent> = downloadManager.downloadWithProgress(infoDto)
+            downloadFlow.collect { event: DownloadEvent ->
+                when (event) {
+                    is DownloadEvent.Complete -> {
+                        result = event.bytes
+                        log("processDownload: downloaded ${result.size} bytes for $id")
                     }
+                    is DownloadEvent.Progress -> {
+                        val now = System.currentTimeMillis()
+                        val startTime = downloadStartTime[id] ?: now
+                        val elapsedMs = now - startTime
+                        val speed = if (elapsedMs > 0) {
+                            event.progress.bytesRead * 1000 / elapsedMs
+                        } else 0L
+                        repository.updateTask(id) {
+                            it.copy(
+                                bytesDownloaded = event.progress.bytesRead,
+                                totalBytes = event.progress.totalBytes,
+                                speedBytesPerSec = speed,
+                            )
+                        }
+                    }
+                    is DownloadEvent.Failed -> throw event.error
                 }
-                result
             }
+            val data = result
 
             // Check if cancelled
             if (cancelledIds.contains(id)) {
@@ -258,6 +274,35 @@ class DownloadViewModel @Inject constructor(
 
             // Write tags
             try {
+                // Download cover art
+                val cover = track.coverUri?.let { coverUri ->
+                    log("processDownload: downloading cover from $coverUri")
+                    runCatching {
+                        // Replace %% with orig for original size, prepend https if needed
+                        val fixedUri = coverUri.replace("%%", "orig")
+                        val fullCoverUrl = if (fixedUri.startsWith("http")) fixedUri else "https://$fixedUri"
+                        log("processDownload: cover full URL: $fullCoverUrl")
+                        val client = okhttp3.OkHttpClient()
+                        val request = okhttp3.Request.Builder().url(fullCoverUrl)
+                            .addHeader("User-Agent", "YandexMusic/24023621 (Android 14; Pixel 8)").build()
+                        val response = client.newCall(request).execute()
+                        log("processDownload: cover response code: ${response.code}")
+                        if (response.isSuccessful) {
+                            val bytes = response.body?.bytes() ?: return@let null
+                            log("processDownload: cover downloaded ${bytes.size} bytes")
+                            val mime = when {
+                                bytes.take(4).toByteArray().contentEquals(byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47)) -> "image/png"
+                                bytes.take(3).toByteArray().contentEquals(byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte())) -> "image/jpeg"
+                                else -> "image/jpeg"
+                            }
+                            CoverArt(bytes, mime)
+                        } else {
+                            log("processDownload: cover download failed: ${response.code}")
+                            null
+                        }
+                    }.getOrNull()
+                }
+                log("processDownload: cover=${cover?.bytes?.size ?: "null"}, container=${info.fileFormat.container}")
                 TagWriter().write(
                     file = written,
                     container = info.fileFormat.container,
@@ -272,7 +317,7 @@ class DownloadViewModel @Inject constructor(
                     genre = track.primaryAlbum?.genre,
                     lyrics = null,
                     url = "https://music.yandex.ru/track/${track.id}",
-                    cover = null,
+                    cover = cover,
                 )
             } catch (e: Exception) {
                 log("processDownload: tag writing failed: ${e.message}")

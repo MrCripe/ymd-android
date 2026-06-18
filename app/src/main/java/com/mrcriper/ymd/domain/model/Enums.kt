@@ -5,9 +5,9 @@ package com.mrcriper.ymd.domain.model
  * Maps user-friendly label → API value (`lq`/`nq`/`lossless`).
  */
 enum class DownloadQuality(val value: Int, val apiValue: String, val label: String) {
-    LOW(0, "lq", "Low (AAC 64)"),
-    NORMAL(1, "nq", "Medium (AAC 192)"),
-    BEST(2, "lossless", "Best (FLAC)");
+    LOW(0, "lq", "Low"),
+    NORMAL(1, "nq", "Medium"),
+    BEST(2, "lossless", "Best");
 
     companion object {
         fun from(value: Int?): DownloadQuality = entries.firstOrNull { it.value == value } ?: BEST

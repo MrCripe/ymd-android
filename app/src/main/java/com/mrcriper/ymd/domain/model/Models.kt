@@ -77,6 +77,7 @@ data class DownloadTask(
     val bytesDownloaded: Long = 0,
     val totalBytes: Long = 0,
     val errorMessage: String? = null,
+    val speedBytesPerSec: Long = 0,
 ) {
     val progress: Float
         get() = if (totalBytes > 0) bytesDownloaded.toFloat() / totalBytes else 0f

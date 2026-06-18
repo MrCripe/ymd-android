@@ -41,7 +41,7 @@ fun DownloadProgressItem(
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AsyncImage(
-                    model = null,
+                    model = item.coverUrl?.let { if (it.startsWith("http")) it else "https://$it" },
                     contentDescription = null,
                     modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)),
                 )
@@ -50,8 +50,20 @@ fun DownloadProgressItem(
                     Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                     Text(item.artist, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     Text(
-                        "${item.format} · ${item.bitrate}kbps",
+                        when (item.status) {
+                            DownloadItem.Status.RUNNING -> "Downloading..."
+                            DownloadItem.Status.COMPLETED -> "Completed"
+                            DownloadItem.Status.FAILED -> item.errorMessage ?: "Failed"
+                            DownloadItem.Status.CANCELLED -> "Cancelled"
+                            DownloadItem.Status.PAUSED -> "Paused"
+                            DownloadItem.Status.QUEUED -> "Queued"
+                        },
                         style = MaterialTheme.typography.labelSmall,
+                        color = when (item.status) {
+                            DownloadItem.Status.COMPLETED -> MaterialTheme.colorScheme.primary
+                            DownloadItem.Status.FAILED, DownloadItem.Status.CANCELLED -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
                     )
                 }
             }

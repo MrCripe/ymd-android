@@ -148,10 +148,6 @@ private fun HomeContent(
                     checked = state.settings.skipExisting,
                 ) { onSetting { it.copy(skipExisting = !it.skipExisting) } }
                 SwitchRow(
-                    title = stringResource(R.string.home_embed_cover),
-                    checked = state.settings.embedCover,
-                ) { onSetting { it.copy(embedCover = !it.embedCover) } }
-                SwitchRow(
                     title = stringResource(R.string.home_only_music),
                     checked = state.settings.onlyMusic,
                 ) { onSetting { it.copy(onlyMusic = !it.onlyMusic) } }

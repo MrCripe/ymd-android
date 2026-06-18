@@ -41,6 +41,7 @@ class HomeViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val api: YandexMusicApi,
     private val downloadRepository: DownloadRepository,
+    private val dataRepository: com.mrcriper.ymd.data.repository.DownloadRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -117,7 +118,13 @@ class HomeViewModel @Inject constructor(
                 Log.d(TAG, "Adding ${resolvedTrackIds.size} tracks to download queue")
 
                 // Add tasks directly to repository — DownloadViewModel will pick them up
+                val existingIds = downloadRepository.tasks.value.keys
                 resolvedTrackIds.forEach { trackId ->
+                    if (trackId in existingIds) return@forEach
+                    if (dataRepository.isAlreadyDownloaded(trackId)) {
+                        message.value = "Track already downloaded"
+                        return@launch
+                    }
                     val task = DownloadTask(
                         id = trackId,
                         track = com.mrcriper.ymd.domain.model.Track(id = trackId, title = "Loading…"),

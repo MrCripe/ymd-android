@@ -1,11 +1,8 @@
 package com.mrcriper.ymd.data.remote.download
 
 import com.mrcriper.ymd.data.remote.dto.DownloadInfoDto
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -78,12 +75,17 @@ class DownloadManager {
             val buffer = ByteArray(8192)
             var totalRead = 0L
             val output = java.io.ByteArrayOutputStream()
+            var lastEmitMs = System.currentTimeMillis()
             while (true) {
                 val bytesRead = source.read(buffer)
                 if (bytesRead == -1) break
                 output.write(buffer, 0, bytesRead.toInt())
                 totalRead += bytesRead
-                emit(DownloadEvent.Progress(DownloadProgress(totalRead, contentLength, false)))
+                val now = System.currentTimeMillis()
+                if (now - lastEmitMs > 250) {
+                    emit(DownloadEvent.Progress(DownloadProgress(totalRead, contentLength, false)))
+                    lastEmitMs = now
+                }
             }
             val raw = output.toByteArray()
             val key = info.key
@@ -94,6 +96,52 @@ class DownloadManager {
             emit(DownloadEvent.Failed(t))
         }
     }.flowOn(Dispatchers.IO)
+
+    private suspend fun getRemoteSize(url: String): Long = withContext(Dispatchers.IO) {
+        val client = OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS).build()
+        val request = Request.Builder().url(url).head()
+            .addHeader("User-Agent", "YandexMusic/24023621 (Android 14; Pixel 8)").build()
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+        response.header("Content-Length")?.toLongOrNull() ?: -1L
+    }
+
+    private suspend fun downloadWithProgressBytes(url: String, onProgress: suspend (Long) -> Unit): ByteArray = withContext(Dispatchers.IO) {
+        val client = OkHttpClient.Builder()
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
+        val request = Request.Builder().url(url)
+            .addHeader("User-Agent", "YandexMusic/24023621 (Android 14; Pixel 8)").build()
+        val call = client.newCall(request)
+        // Make OkHttp call cancellable via coroutine cancellation
+        val response = coroutineScope {
+            val deferred = async { call.execute() }
+            val result = deferred.await()
+            if (!result.isSuccessful) throw IOException("HTTP ${result.code}")
+            result
+        }
+        val body = response.body ?: throw IOException("Empty response body")
+        val source = body.source()
+        val buffer = ByteArray(8192)
+        var totalRead = 0L
+        val output = java.io.ByteArrayOutputStream()
+        var lastEmitMs = System.currentTimeMillis()
+        while (true) {
+            // Check for cancellation periodically
+            if (!isActive) throw kotlinx.coroutines.CancellationException("Download cancelled")
+            val bytesRead = source.read(buffer)
+            if (bytesRead == -1) break
+            output.write(buffer, 0, bytesRead.toInt())
+            totalRead += bytesRead
+            val now = System.currentTimeMillis()
+            if (now - lastEmitMs > 250) {
+                onProgress(totalRead)
+                lastEmitMs = now
+            }
+        }
+        output.toByteArray()
+    }
 
     /**
      * Writes [data] to a temp file with sha256(name) suffix and renames atomically.

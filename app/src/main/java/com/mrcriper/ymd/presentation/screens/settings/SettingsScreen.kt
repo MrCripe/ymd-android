@@ -105,7 +105,7 @@ fun SettingsScreen(
             }
             SettingsGroup(title = stringResource(R.string.settings_download_group)) {
                 RowSetting("Skip existing", settings.skipExisting) { viewModel.update { it.copy(skipExisting = !it.skipExisting) } }
-                RowSetting("Embed cover", settings.embedCover) { viewModel.update { it.copy(embedCover = !it.embedCover) } }
+                // Cover embedding is always enabled now
                 RowSetting("Only music", settings.onlyMusic) { viewModel.update { it.copy(onlyMusic = !it.onlyMusic) } }
                 RowSetting("Unsafe path", settings.unsafePath) { viewModel.update { it.copy(unsafePath = !it.unsafePath) } }
                 Spacer(Modifier.padding(4.dp))
